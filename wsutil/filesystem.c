@@ -541,7 +541,7 @@ init_progfile_dir(const char *arg0
      * set, causes us to look for plugins and the like in the build
      * directory.)
      */
-    if (g_getenv("WIRESHARK_RUN_FROM_BUILD_DIRECTORY") != NULL
+    if (g_getenv("WIRESHARK_GENERIC_DISSECTOR_DIR") != NULL
         && !started_with_special_privs())
         running_in_build_directory_flag = TRUE;
 
@@ -971,7 +971,7 @@ init_plugin_dir(void)
          * the "plugins" subdirectory of the directory where the program
          * we're running is (that's the build directory).
          */
-        plugin_dir = g_strdup_printf("%s/plugins", get_progfile_dir());
+        plugin_dir = g_strdup_printf("%s/epan/plugins", get_progfile_dir());
     } else {
         if (g_getenv("WIRESHARK_PLUGIN_DIR") && !started_with_special_privs()) {
             /*
