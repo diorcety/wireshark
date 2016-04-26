@@ -268,14 +268,14 @@ dissect_uds(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree _U_, void* data 
             guint32 seed_length = data_length - UDS_SA_SEED_OFFSET;
             if(seed_length >0) {
                 proto_tree_add_item(uds_sa_tree, hf_uds_sa_seed, tvb, UDS_SA_SEED_OFFSET, seed_length, ENC_BIG_ENDIAN);
-                col_append_fstr(pinfo->cinfo, COL_INFO, "   Seed:%s",
+                col_append_fstr(pinfo->cinfo, COL_INFO, "   %s",
                                 tvb_bytes_to_str_punct(wmem_packet_scope(), tvb, UDS_SA_SEED_OFFSET, seed_length, ' '));
             }
         } else {
             guint32 key_length = data_length - UDS_SA_KEY_OFFSET;
             if(key_length > 0) {
                 proto_tree_add_item(uds_sa_tree, hf_uds_sa_key, tvb, UDS_SA_KEY_OFFSET, key_length, ENC_BIG_ENDIAN);
-                col_append_fstr(pinfo->cinfo, COL_INFO, "   Key:%s",
+                col_append_fstr(pinfo->cinfo, COL_INFO, "   %s",
                                 tvb_bytes_to_str_punct(wmem_packet_scope(), tvb, UDS_SA_KEY_OFFSET, key_length, ' '));
             }
         }
@@ -310,7 +310,7 @@ dissect_uds(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree _U_, void* data 
         error_name = val_to_str(error, uds_responses, "Unknown (0x%02x)");
         proto_tree_add_item(uds_err_tree, hf_uds_err_error, tvb, UDS_ERR_ERROR_OFFSET,
                             UDS_ERR_ERROR_LEN, ENC_BIG_ENDIAN);
-        col_append_fstr(pinfo->cinfo, COL_INFO, "   SID:%s   Error:%s", error_service_name, error_name);
+        col_append_fstr(pinfo->cinfo, COL_INFO, "   %s (SID: %s)", error_name, error_service_name);
     }
 
     return tvb_captured_length(tvb);
