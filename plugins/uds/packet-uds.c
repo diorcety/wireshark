@@ -26,29 +26,6 @@
 #include <epan/prefs.h>
 #include "packet-uds.h"
 
-#define UDS_SERVICE_DSC     0x10
-#define UDS_SERVICE_ER      0x11
-#define UDS_SERVICE_CDTCI   0x14
-#define UDS_SERVICE_RDTCI   0x19
-#define UDS_SERVICE_RDBI    0x22
-#define UDS_SERVICE_RMBA    0x23
-#define UDS_SERVICE_RSDBI   0x24
-#define UDS_SERVICE_SA      0x27
-#define UDS_SERVICE_CC      0x28
-#define UDS_SERVICE_RDBPI   0x2A
-#define UDS_SERVICE_DDDI    0x2C
-#define UDS_SERVICE_WDBI    0x2E
-#define UDS_SERVICE_IOCBI   0x2F
-#define UDS_SERVICE_RC      0x31
-#define UDS_SERVICE_RD      0x34
-#define UDS_SERVICE_RU      0x35
-#define UDS_SERVICE_TD      0x36
-#define UDS_SERVICE_RTE     0x37
-#define UDS_SERVICE_RFT     0x38
-#define UDS_SERVICE_WMBA    0x3D
-#define UDS_SERVICE_TP      0x3E
-#define UDS_SERVICE_ERR     0x3F
-
 static value_string uds_services[]= {
         {UDS_SERVICE_DSC,   "Diagnostic Session Control"},
         {UDS_SERVICE_ER,    "ECU Reset"},
@@ -74,29 +51,6 @@ static value_string uds_services[]= {
         {UDS_SERVICE_ERR,   "Error"},
         {0, NULL}
 };
-
-#define UDS_RESPONSE_GR       0x10
-#define UDS_RESPONSE_SNS      0x11
-#define UDS_RESPONSE_SFNS     0x12
-#define UDS_RESPONSE_IMLOIF   0x13
-#define UDS_RESPONSE_RTL      0x14
-#define UDS_RESPONSE_BRR      0x21
-#define UDS_RESPONSE_CNC      0x22
-#define UDS_RESPONSE_RSE      0x24
-#define UDS_RESPONSE_NRFSC    0x25
-#define UDS_RESPONSE_FPEORA   0x26
-#define UDS_RESPONSE_ROOR     0x31
-#define UDS_RESPONSE_SAD      0x33
-#define UDS_RESPONSE_IK       0x35
-#define UDS_RESPONSE_ENOA     0x36
-#define UDS_RESPONSE_RTDNE    0x37
-#define UDS_RESPONSE_UDNA     0x70
-#define UDS_RESPONSE_TDS      0x71
-#define UDS_RESPONSE_GPF      0x72
-#define UDS_RESPONSE_WBSC     0x73
-#define UDS_RESPONSE_RCRRP    0x78
-#define UDS_RESPONSE_SFNSIAS  0x7E
-#define UDS_RESPONSE_SNSIAS   0x7F
 
 static value_string uds_responses[]= {
         {UDS_RESPONSE_GR,      "General reject"},
@@ -124,54 +78,40 @@ static value_string uds_responses[]= {
         {0, NULL}
 };
 
-static value_string uds_dsc_session_types[]= {
-        {0x1, "Default Session"},
-        {0x2, "Programming Session"},
-        {0x3, "Extended Session"},
+static value_string uds_dsc_session_types[] = {
+        {UDS_DSC_SESSION_TYPES_DEFAULT, "Default Session"},
+        {UDS_DSC_SESSION_TYPES_PROGRAMMING, "Programming Session"},
+        {UDS_DSC_SESSION_TYPES_EXTENDED, "Extended Session"},
         {0, NULL}
 };
 
-static value_string uds_sa_types[]= {
-        {0x1, "Request Seed"},
-        {0x2, "Send Key"},
-        {0x3, "Request Seed"},
-        {0x4, "Send Key"},
+static value_string uds_sa_types[] = {
+        {UDS_SA_TYPES_SEED, "Request Seed"},
+        {UDS_SA_TYPES_KEY, "Send Key"},
+        {UDS_SA_TYPES_SEED_2, "Request Seed"},
+        {UDS_SA_TYPES_KEY_2, "Send Key"},
         {0, NULL}
 };
 
-#define UDS_SID_MASK ((guint8)0xBF)
-#define UDS_REPLY_MASK ((guint8)0x40)
-#define UDS_SID_OFFSET 0
-#define UDS_SID_LEN 1
-#define UDS_DATA_OFFSET 1
-
-#define UDS_DSC_SESSION_TYPE_OFFSET (UDS_DATA_OFFSET + 0)
-#define UDS_DSC_SESSION_TYPE_LEN 1
-#define UDS_DSC_SESSION_PARAMETER_RECORD_OFFSET (UDS_DSC_SESSION_TYPE_OFFSET + UDS_DSC_SESSION_TYPE_LEN)
-
-#define UDS_RDBI_DATA_IDENTIFIER_OFFSET (UDS_DATA_OFFSET + 0)
-#define UDS_RDBI_DATA_IDENTIFIER_LEN 2
-#define UDS_RDBI_DATA_RECORD_OFFSET (UDS_RDBI_DATA_IDENTIFIER_OFFSET + UDS_RDBI_DATA_IDENTIFIER_LEN)
-
-#define UDS_SA_TYPE_OFFSET (UDS_DATA_OFFSET + 0)
-#define UDS_SA_TYPE_LEN 1
-#define UDS_SA_KEY_OFFSET (UDS_SA_TYPE_OFFSET + UDS_SA_TYPE_LEN)
-#define UDS_SA_SEED_OFFSET (UDS_SA_TYPE_OFFSET + UDS_SA_TYPE_LEN)
-
-#define UDS_WDBI_DATA_IDENTIFIER_OFFSET (UDS_DATA_OFFSET + 0)
-#define UDS_WDBI_DATA_IDENTIFIER_LEN 2
-#define UDS_WDBI_DATA_RECORD_OFFSET (UDS_WDBI_DATA_IDENTIFIER_OFFSET + UDS_WDBI_DATA_IDENTIFIER_LEN)
-
-#define UDS_ERR_SID_OFFSET (UDS_DATA_OFFSET + 0)
-#define UDS_ERR_SID_LEN 1
-#define UDS_ERR_ERROR_OFFSET (UDS_ERR_SID_OFFSET + UDS_ERR_SID_LEN)
-#define UDS_ERR_ERROR_LEN 1
+static value_string uds_rdtci_report_types[] = {
+    {UDS_RDTCI_REPORT_TYPES_NUMBER_BY_STATUS_MASK, "Report Number of DTC by Status Mask"},
+    {UDS_RDTCI_REPORT_TYPES_BY_STATUS_MASK, "Report DTC by Status Mask"},
+    {UDS_RDTCI_REPORT_TYPES_SNAPSHOT_IDENTIFICATION, "Report DTC Snapshot Identification"},
+    {UDS_RDTCI_REPORT_TYPES_SNAPSHOT_RECORD_BY_DTC, "Report DTC Snapshot Record by DTC Number"},
+    {UDS_RDTCI_REPORT_TYPES_SNAPSHOT_RECORD_BY_RECORD, "Report DTC Snapshot Record by Record Number"},
+    {UDS_RDTCI_REPORT_TYPES_EXTENDED_RECARD_BY_DTC, "Report DTC Extended Data Record by DTC Number"},
+    {UDS_RDTCI_REPORT_TYPES_SUPPORTED_DTC, "Report Supported DTC"},
+    {0, NULL}
+};
 
 static int hf_uds_service = -1;
 static int hf_uds_reply = -1;
 
 static int hf_uds_dsc_session_type = -1;
 static int hf_uds_dsc_session_parameter_record = -1;
+
+static int hf_uds_rdtci_report_type = -1;
+static int hf_uds_rdtci_record = -1;
 
 static int hf_uds_rdbi_data_identifier = -1;
 static int hf_uds_rdbi_data_record = -1;
@@ -184,10 +124,11 @@ static int hf_uds_wdbi_data_identifier = -1;
 static int hf_uds_wdbi_data_record = -1;
 
 static int hf_uds_err_sid = -1;
-static int hf_uds_err_error = -1;
+static int hf_uds_err_code = -1;
 
 static gint ett_uds = -1;
 static gint ett_uds_dsc = -1;
+static gint ett_uds_rdtci = -1;
 static gint ett_uds_rdbi = -1;
 static gint ett_uds_sa = -1;
 static gint ett_uds_wdbi = -1;
@@ -236,6 +177,21 @@ dissect_uds(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree _U_, void* data 
                             tvb_bytes_to_str_punct(wmem_packet_scope(), tvb, UDS_DSC_SESSION_PARAMETER_RECORD_OFFSET,
                                                    record_length, ' '));
         }
+    } else if(service == UDS_SERVICE_RDTCI) {
+        proto_tree *uds_rtdci_tree;
+        guint8 report_type;
+        guint32 record_length = data_length - UDS_RDTCI_RECORD_OFFSET;
+
+        uds_rtdci_tree = proto_tree_add_subtree(uds_tree, tvb, 0, -1, ett_uds_rdtci, NULL, service_name);
+        report_type = tvb_get_guint8(tvb, UDS_RDTCI_REPORT_TYPE_OFFSET);
+        proto_tree_add_item(uds_rtdci_tree, hf_uds_rdtci_report_type, tvb, UDS_RDTCI_REPORT_TYPE_OFFSET,
+                            UDS_RDTCI_REPORT_TYPE_LEN, ENC_BIG_ENDIAN);
+        proto_tree_add_item(uds_rtdci_tree, hf_uds_rdtci_record, tvb,
+                            UDS_RDTCI_RECORD_OFFSET, record_length, ENC_BIG_ENDIAN);
+        col_append_fstr(pinfo->cinfo, COL_INFO, "   %s    %s",
+                        val_to_str(report_type, uds_rdtci_report_types, "Unknown (0x%02x)"),
+                        tvb_bytes_to_str_punct(wmem_packet_scope(), tvb, UDS_RDTCI_RECORD_OFFSET,
+                                               record_length, ' '));
     } else if(service == UDS_SERVICE_RDBI) {
         proto_tree *uds_rdbi_tree;
         guint16 data_identifier;
@@ -299,17 +255,17 @@ dissect_uds(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree _U_, void* data 
         }
     } else if(service == UDS_SERVICE_ERR) {
         proto_tree *uds_err_tree;
-        guint8 error_sid, error;
+        guint8 error_sid, error_code;
         const char *error_service_name, *error_name;
         uds_err_tree = proto_tree_add_subtree(uds_tree, tvb, 0, -1, ett_uds_err, NULL, service_name);
         error_sid = tvb_get_guint8(tvb, UDS_ERR_SID_OFFSET);
         error_service_name = val_to_str(error_sid, uds_services, "Unknown (0x%02x)");
         proto_tree_add_item(uds_err_tree, hf_uds_err_sid, tvb, UDS_ERR_SID_OFFSET,
                             UDS_ERR_SID_LEN, ENC_BIG_ENDIAN);
-        error = tvb_get_guint8(tvb, UDS_ERR_ERROR_OFFSET);
-        error_name = val_to_str(error, uds_responses, "Unknown (0x%02x)");
-        proto_tree_add_item(uds_err_tree, hf_uds_err_error, tvb, UDS_ERR_ERROR_OFFSET,
-                            UDS_ERR_ERROR_LEN, ENC_BIG_ENDIAN);
+        error_code = tvb_get_guint8(tvb, UDS_ERR_CODE_OFFSET);
+        error_name = val_to_str(error_code, uds_responses, "Unknown (0x%02x)");
+        proto_tree_add_item(uds_err_tree, hf_uds_err_code, tvb, UDS_ERR_CODE_OFFSET,
+                            UDS_ERR_CODE_LEN, ENC_BIG_ENDIAN);
         col_append_fstr(pinfo->cinfo, COL_INFO, "   %s (SID: %s)", error_name, error_service_name);
     }
 
@@ -353,6 +309,26 @@ proto_register_uds(void)
                     &hf_uds_dsc_session_parameter_record,
                     {
                             "Session Parameter Record", "uds.dsc.session_parameter_record",
+                            FT_BYTES, BASE_NONE,
+                            NULL, 0x0,
+                            NULL, HFILL
+                    }
+            },
+
+
+            {
+                    &hf_uds_rdtci_report_type,
+                    {
+                            "Report Type", "uds.rdtci.report_type",
+                            FT_UINT8, BASE_HEX,
+                            VALS(uds_rdtci_report_types), 0x0,
+                            NULL, HFILL
+                    }
+            },
+            {
+                    &hf_uds_rdtci_record,
+                    {
+                            "Record", "uds.rdtci.record",
                             FT_BYTES, BASE_NONE,
                             NULL, 0x0,
                             NULL, HFILL
@@ -439,9 +415,9 @@ proto_register_uds(void)
                     }
             },
             {
-                    &hf_uds_err_error,
+                    &hf_uds_err_code,
                     {
-                            "Error", "uds.err.error",
+                            "Code", "uds.err.code",
                             FT_UINT8, BASE_HEX,
                             VALS(uds_responses), 0x0,
                             NULL, HFILL
@@ -454,6 +430,7 @@ proto_register_uds(void)
             {
                     &ett_uds,
                     &ett_uds_dsc,
+                    &ett_uds_rdtci,
                     &ett_uds_rdbi,
                     &ett_uds_sa,
                     &ett_uds_wdbi,

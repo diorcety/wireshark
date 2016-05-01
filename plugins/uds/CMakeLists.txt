@@ -25,7 +25,7 @@ include(WiresharkPlugin)
 set_module_info(uds 0 0 1 0)
 
 set(DISSECTOR_SRC
-	packet-uds.c
+		packet-uds.c
 )
 
 set(PLUGIN_FILES
