@@ -49,6 +49,7 @@ static value_string uds_services[]= {
         {UDS_SERVICE_WMBA,  "Write Memory By Address"},
         {UDS_SERVICE_TP,    "Tester Present"},
         {UDS_SERVICE_ERR,   "Error"},
+        {UDS_SERVICE_CDTCS, "Control DTC Setting"},
         {0, NULL}
 };
 
@@ -104,6 +105,20 @@ static value_string uds_rdtci_report_types[] = {
     {0, NULL}
 };
 
+static value_string uds_rc_actions[] = {
+        {UDS_RC_ACTIONS_START, "Start routine"},
+        {UDS_RC_ACTIONS_STOP, "Stop routine"},
+        {UDS_RC_ACTIONS_REQUEST, "Request routine result"},
+        {0, NULL}
+};
+
+static value_string uds_cdtcs_actions[] = {
+        {UDS_CDTCS_ACTIONS_ON, "On"},
+        {UDS_CDTCS_ACTIONS_OFF, "Off"},
+        {0, NULL}
+};
+
+
 static int hf_uds_service = -1;
 static int hf_uds_reply = -1;
 
@@ -123,8 +138,14 @@ static int hf_uds_sa_seed = -1;
 static int hf_uds_wdbi_data_identifier = -1;
 static int hf_uds_wdbi_data_record = -1;
 
+static int hf_uds_rc_action = -1;
+static int hf_uds_rc_routine = -1;
+static int hf_uds_rc_data = -1;
+
 static int hf_uds_err_sid = -1;
 static int hf_uds_err_code = -1;
+
+static int hf_uds_cdtcs_action = -1;
 
 static gint ett_uds = -1;
 static gint ett_uds_dsc = -1;
@@ -132,7 +153,9 @@ static gint ett_uds_rdtci = -1;
 static gint ett_uds_rdbi = -1;
 static gint ett_uds_sa = -1;
 static gint ett_uds_wdbi = -1;
+static gint ett_uds_rc = -1;
 static gint ett_uds_err = -1;
+static gint ett_uds_cdtcs = -1;
 
 static int proto_uds = -1;
 
@@ -162,6 +185,7 @@ dissect_uds(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree _U_, void* data 
     if(service == UDS_SERVICE_DSC) {
         proto_tree *uds_dsc_tree;
         guint8 session_type;
+
         uds_dsc_tree = proto_tree_add_subtree(uds_tree, tvb, 0, -1, ett_uds_dsc, NULL, service_name);
         proto_tree_add_item(uds_dsc_tree, hf_uds_dsc_session_type, tvb, UDS_DSC_SESSION_TYPE_OFFSET,
                             UDS_DSC_SESSION_TYPE_LEN, ENC_BIG_ENDIAN);
@@ -213,6 +237,7 @@ dissect_uds(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree _U_, void* data 
     } else if(service == UDS_SERVICE_SA) {
         proto_tree *uds_sa_tree;
         guint8 security_access_type;
+
         uds_sa_tree = proto_tree_add_subtree(uds_tree, tvb, 0, -1, ett_uds_sa, NULL, service_name);
         proto_tree_add_item(uds_sa_tree, hf_uds_sa_type, tvb, UDS_SA_TYPE_OFFSET,
                             UDS_SA_TYPE_LEN, ENC_BIG_ENDIAN);
@@ -253,10 +278,35 @@ dissect_uds(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree _U_, void* data 
                             tvb_bytes_to_str_punct(wmem_packet_scope(), tvb, UDS_WDBI_DATA_RECORD_OFFSET, record_length,
                                                    ' '));
         }
+    } else if(service == UDS_SERVICE_RC) {
+        proto_tree *uds_rc_tree;
+        gint8 action;
+        gint16 routine;
+
+        uds_rc_tree = proto_tree_add_subtree(uds_tree, tvb, 0, -1, ett_uds_rc, NULL, service_name);
+        proto_tree_add_item(uds_rc_tree, hf_uds_rc_action, tvb, UDS_RC_ACTION_OFFSET,
+                            UDS_RC_ACTION_LEN, ENC_BIG_ENDIAN);
+        action = tvb_get_guint8(tvb, UDS_RC_ACTION_OFFSET);
+        col_append_fstr(pinfo->cinfo, COL_INFO, "   %s",
+                        val_to_str(action, uds_rc_actions, "Unknown (0x%02x)"));
+
+        routine = tvb_get_guint16(tvb, UDS_RC_ROUTINE_OFFSET, ENC_BIG_ENDIAN);
+        proto_tree_add_item(uds_rc_tree, hf_uds_rc_routine, tvb, UDS_RC_ROUTINE_OFFSET,
+                            UDS_RC_ROUTINE_LEN, ENC_BIG_ENDIAN);
+        col_append_fstr(pinfo->cinfo, COL_INFO, "   0x%04x", routine);
+        if(sid & UDS_REPLY_MASK) {
+            guint32 rc_data_len = data_length - UDS_RC_DATA_OFFSET;
+            if (rc_data_len > 0) {
+                proto_tree_add_item(uds_rc_tree, hf_uds_rc_data, tvb, UDS_RC_DATA_OFFSET, rc_data_len, ENC_BIG_ENDIAN);
+                col_append_fstr(pinfo->cinfo, COL_INFO, "   %s",
+                                tvb_bytes_to_str_punct(wmem_packet_scope(), tvb, UDS_RC_DATA_OFFSET, rc_data_len, ' '));
+            }
+        }
     } else if(service == UDS_SERVICE_ERR) {
         proto_tree *uds_err_tree;
         guint8 error_sid, error_code;
         const char *error_service_name, *error_name;
+
         uds_err_tree = proto_tree_add_subtree(uds_tree, tvb, 0, -1, ett_uds_err, NULL, service_name);
         error_sid = tvb_get_guint8(tvb, UDS_ERR_SID_OFFSET);
         error_service_name = val_to_str(error_sid, uds_services, "Unknown (0x%02x)");
@@ -267,6 +317,16 @@ dissect_uds(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree _U_, void* data 
         proto_tree_add_item(uds_err_tree, hf_uds_err_code, tvb, UDS_ERR_CODE_OFFSET,
                             UDS_ERR_CODE_LEN, ENC_BIG_ENDIAN);
         col_append_fstr(pinfo->cinfo, COL_INFO, "   %s (SID: %s)", error_name, error_service_name);
+    } else if(service == UDS_SERVICE_CDTCS) {
+        proto_tree *uds_cdtcs_tree;
+        gint8 action;
+
+        uds_cdtcs_tree = proto_tree_add_subtree(uds_tree, tvb, 0, -1, ett_uds_cdtcs, NULL, service_name);
+        action = tvb_get_guint8(tvb, UDS_CDTCS_ACTION_OFFSET);
+        proto_tree_add_item(uds_cdtcs_tree, hf_uds_cdtcs_action, tvb, UDS_CDTCS_ACTION_OFFSET,
+                            UDS_CDTCS_ACTION_LEN, ENC_BIG_ENDIAN);
+        col_append_fstr(pinfo->cinfo, COL_INFO, "   %s",
+                        val_to_str(action, uds_cdtcs_actions, "Unknown (0x%02x)"));
     }
 
     return tvb_captured_length(tvb);
@@ -404,6 +464,33 @@ proto_register_uds(void)
                     }
             },
 
+            {
+                    &hf_uds_rc_action,
+                    {
+                            "Actionr", "uds.rc.action",
+                            FT_UINT8, BASE_HEX,
+                            VALS(uds_rc_actions), 0x0,
+                            NULL, HFILL
+                    }
+            },
+            {
+                    &hf_uds_rc_routine,
+                    {
+                            "Routine", "uds.rc.routine",
+                            FT_UINT16, BASE_HEX,
+                            NULL, 0x0,
+                            NULL, HFILL
+                    }
+            },
+            {
+                    &hf_uds_rc_data,
+                    {
+                            "Data", "uds.rc.data",
+                            FT_BYTES, BASE_NONE,
+                            NULL, 0x0,
+                            NULL, HFILL
+                    }
+            },
 
             {
                     &hf_uds_err_sid,
@@ -423,6 +510,16 @@ proto_register_uds(void)
                             NULL, HFILL
                     }
             },
+
+            {
+                    &hf_uds_cdtcs_action,
+                    {
+                            "Action", "uds.cdtcs.action",
+                            FT_UINT8, BASE_HEX,
+                            VALS(uds_cdtcs_actions), 0x0,
+                            NULL, HFILL
+                    }
+            },
     };
 
     /* Setup protocol subtree array */
@@ -434,7 +531,9 @@ proto_register_uds(void)
                     &ett_uds_rdbi,
                     &ett_uds_sa,
                     &ett_uds_wdbi,
+                    &ett_uds_rc,
                     &ett_uds_err,
+                    &ett_uds_cdtcs,
             };
 
     proto_uds = proto_register_protocol (

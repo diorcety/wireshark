@@ -79,7 +79,7 @@ def main(argv):
 
     groups = data.split('\n\n\n')
 
-    regex = re.compile("On ([^,]+), (\w+?) O:.*" + "\s*ChannelID:\s*(\d+)\s*\n" + ".*" + "\s*RxStatus:\s*([^\n]*)\s*\n" + ".*" + "\s*Data \[\w+\]:\s*([^\n]*)\s*\n" +  ".*", re.DOTALL | re.MULTILINE)
+    regex = re.compile("On ([^,]+), (\w+?) O:.*" + "\s*ChannelID:\s*(\d+)\s*\n" + ".*" + "\s*RxStatus:\s*([^\n]*)\s*\n" + ".*" + "\s*Data \[\w+\]:\s*(.*)\s*\n\n" +  ".*", re.DOTALL | re.MULTILINE)
 
     def add(channelId, date, data):
         data = parse_can_data(data)
