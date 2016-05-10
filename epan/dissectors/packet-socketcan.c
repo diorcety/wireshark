@@ -30,6 +30,7 @@
 #include <epan/packet.h>
 #include <epan/prefs.h>
 #include <epan/decode_as.h>
+#include <epan/proto_data.h>
 #include <wiretap/wtap.h>
 
 #include "packet-sll.h"
@@ -73,9 +74,12 @@ static int proto_can = -1;
 struct can_identifier
 {
 	guint32 id;
+	guint32 frame_type;
 };
+typedef struct can_identifier can_identifier_t;
 
 static dissector_table_t subdissector_table;
+static dissector_table_t id_subdissector_table;
 
 static const value_string frame_type_vals[] =
 {
@@ -96,48 +100,71 @@ static gpointer can_value(packet_info *pinfo _U_)
 	return 0;
 }
 
+
+static void can_id_prompt(packet_info *pinfo, gchar* result)
+{
+	g_snprintf(result, MAX_DECODE_AS_PROMPT_LEN, "CAN id 0x%x as",
+			   ((can_identifier_t *)p_get_proto_data(wmem_file_scope(), pinfo, proto_can, 0))->id);
+}
+
+static gpointer can_id_value(packet_info *pinfo)
+{
+	return GUINT_TO_POINTER(((can_identifier_t *)p_get_proto_data(wmem_file_scope(), pinfo, proto_can, 0))->id);
+}
+
+
 static int
 dissect_socketcan(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
 	proto_tree *can_tree;
 	proto_item *ti;
-	guint8      frame_type;
 	gint        frame_len;
-	struct can_identifier can_id;
+	can_identifier_t *can_identifier_info;
 	tvbuff_t*   next_tvb;
 
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "CAN");
 	col_clear(pinfo->cinfo,COL_INFO);
 
 	frame_len  = tvb_get_guint8( tvb, CAN_LEN_OFFSET);
-	can_id.id  = tvb_get_ntohl(tvb, 0);
 
-	if (can_id.id & CAN_RTR_FLAG)
-	{
-		frame_type = LINUX_CAN_RTR;
-	}
-	else if (can_id.id & CAN_ERR_FLAG)
-	{
-		frame_type = LINUX_CAN_ERR;
-	}
-	else if (can_id.id & CAN_EFF_FLAG)
-	{
-		frame_type = LINUX_CAN_EXT;
-	}
-	else
-	{
-		frame_type = LINUX_CAN_STD;
-	}
+	can_identifier_info = (can_identifier_t *)p_get_proto_data(wmem_file_scope(), pinfo, proto_can, 0);
 
-	can_id.id &= CAN_EFF_MASK;
+	if(!can_identifier_info) {
+		can_identifier_info = wmem_new(wmem_file_scope(), can_identifier_t);
+
+		can_identifier_info->id = tvb_get_ntohl(tvb, 0);
+
+		if (can_identifier_info->id & CAN_RTR_FLAG)
+		{
+			can_identifier_info->frame_type = LINUX_CAN_RTR;
+		}
+		else if (can_identifier_info->id & CAN_ERR_FLAG)
+		{
+			can_identifier_info->frame_type = LINUX_CAN_ERR;
+		}
+		else if (can_identifier_info->id & CAN_EFF_FLAG)
+		{
+			can_identifier_info->frame_type = LINUX_CAN_EXT;
+		}
+		else
+		{
+			can_identifier_info->frame_type = LINUX_CAN_STD;
+		}
+
+		can_identifier_info->id &= CAN_EFF_MASK;
+
+		p_add_proto_data(wmem_file_scope(), pinfo, proto_can, 0, can_identifier_info);
+	}
 
 	col_add_fstr(pinfo->cinfo, COL_INFO, "%s: 0x%08x",
-		     val_to_str(frame_type, frame_type_vals, "Unknown (0x%02x)"), can_id.id);
+		     val_to_str(can_identifier_info->frame_type, frame_type_vals, "Unknown (0x%02x)"), can_identifier_info->id);
 	col_append_fstr(pinfo->cinfo, COL_INFO, "   %s",
 			tvb_bytes_to_str_punct(wmem_packet_scope(), tvb, CAN_DATA_OFFSET, frame_len, ' '));
 
 	ti       = proto_tree_add_item(tree, proto_can, tvb, 0, -1, ENC_NA);
 	can_tree = proto_item_add_subtree(ti, ett_can);
+
+	p_add_proto_data(pinfo->pool, pinfo, proto_can, pinfo->curr_layer_num, can_tree);
 
 	proto_tree_add_item(can_tree, hf_can_ident,   tvb, 0, 4, ENC_BIG_ENDIAN);
 	proto_tree_add_item(can_tree, hf_can_extflag, tvb, 0, 4, ENC_BIG_ENDIAN);
@@ -148,12 +175,14 @@ dissect_socketcan(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* dat
 
 	next_tvb = tvb_new_subset_length(tvb, CAN_DATA_OFFSET, frame_len);
 
-	/* Functionality for choosing subdissector is controlled through Decode As as CAN doesn't
-	   have a unique identifier to determine subdissector */
-	if (!dissector_try_uint_new(subdissector_table, 0, next_tvb, pinfo, tree, FALSE, &can_id))
-	{
-		call_data_dissector(next_tvb, pinfo, tree);
+	if (!dissector_try_uint_new(id_subdissector_table, can_identifier_info->id, next_tvb, pinfo, tree, FALSE, can_identifier_info)) {
+		/* Functionality for choosing subdissector is controlled through Decode As as CAN doesn't
+           have a unique identifier to determine subdissector */
+		if (!dissector_try_uint_new(subdissector_table, 0, next_tvb, pinfo, tree, FALSE, can_identifier_info)) {
+			call_data_dissector(next_tvb, pinfo, tree);
+		}
 	}
+
 	return tvb_captured_length(tvb);
 }
 
@@ -222,6 +251,12 @@ proto_register_socketcan(void)
 	static decode_as_t can_da = {"can", "Network", "can.subdissector", 1, 0, &can_da_values, NULL, NULL,
 									decode_as_default_populate_list, decode_as_default_reset, decode_as_default_change, NULL};
 
+	/* Decode As handling */
+	static build_valid_func can_id_da_build_value[1] = {can_id_value};
+	static decode_as_value_t can_id_da_values = {can_id_prompt, 1, can_id_da_build_value};
+	static decode_as_t can_id_da = {"can", "Transport", "can.id", 1, 0, &can_id_da_values, NULL, NULL,
+								 decode_as_default_populate_list, decode_as_default_reset, decode_as_default_change, NULL};
+
 	proto_can = proto_register_protocol(
 		"Controller Area Network",	/* name       */
 		"CAN",				/* short name */
@@ -235,11 +270,16 @@ proto_register_socketcan(void)
 	subdissector_table = register_dissector_table("can.subdissector",
 		"CAN next level dissector", proto_can, FT_UINT32, BASE_HEX, DISSECTOR_TABLE_NOT_ALLOW_DUPLICATE);
 
+	id_subdissector_table = register_dissector_table("can.id",
+												  "CAN ID", proto_can, FT_UINT32, BASE_HEX, DISSECTOR_TABLE_NOT_ALLOW_DUPLICATE);
+
 	can_module = prefs_register_protocol(proto_can, NULL);
 
 	prefs_register_obsolete_preference(can_module, "protocol");
 
 	register_decode_as(&can_da);
+
+	register_decode_as(&can_id_da);
 }
 
 void

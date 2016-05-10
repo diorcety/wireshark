@@ -552,7 +552,10 @@ proto_reg_handoff_uds(void)
     static dissector_handle_t uds_handle;
 
     uds_handle = create_dissector_handle(dissect_uds, proto_uds);
+//#ifdef HACK
     dissector_add_for_decode_as("can.subdissector", uds_handle);
+    dissector_add_for_decode_as("iso15765.subdissector", uds_handle);
+//#endif /* HACK */
 }
 
 /*

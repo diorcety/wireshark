@@ -1,4 +1,7 @@
-# CMakeListsCustom.txt
+# Makefile.am
+# Automake file for iso15765 plugin
+# By Steve Limkemann <stevelim@dgtech.com>
+# Copyright 1998 Steve Limkemann
 #
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
@@ -18,10 +21,36 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 #
-# Add a list of your custom plugins SRC dir here including the path
-#
 
-set(CUSTOM_PLUGIN_SRC_DIR
-plugins/uds
-plugins/iso15765
-)
+include Makefile.common
+include $(top_srcdir)/Makefile.am.inc
+include ../Makefile.am.inc
+
+plugin_LTLIBRARIES = iso15765.la
+
+iso15765_la_SOURCES = \
+	plugin.c \
+	moduleinfo.h \
+	$(SRC_FILES)	\
+	$(HEADER_FILES)
+
+iso15765_la_CPPFLAGS = $(AM_CPPFLAGS) $(PLUGIN_CPPFLAGS)
+
+iso15765_la_CFLAGS = $(AM_CFLAGS) $(PLUGIN_CFLAGS)
+
+iso15765_la_LDFLAGS = $(PLUGIN_LDFLAGS)
+
+CLEANFILES = \
+	iso15765 \
+	*~
+
+MAINTAINERCLEANFILES = \
+	Makefile.in	\
+	plugin.c
+
+EXTRA_DIST = \
+	Makefile.common		\
+	Makefile.nmake		\
+	moduleinfo.nmake	\
+	plugin.rc.in		\
+	CMakeLists.txt

@@ -1,4 +1,7 @@
-# CMakeListsCustom.txt
+# Makefile.common for iso15765 plugin
+#     Contains the stuff from Makefile.am and Makefile.nmake that is
+#     a) common to both files and
+#     b) portable between both files
 #
 # Wireshark - Network traffic analyzer
 # By Gerald Combs <gerald@wireshark.org>
@@ -17,11 +20,23 @@
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
-#
-# Add a list of your custom plugins SRC dir here including the path
-#
 
-set(CUSTOM_PLUGIN_SRC_DIR
-plugins/uds
-plugins/iso15765
-)
+# the name of the plugin
+PLUGIN_NAME = iso15765
+
+# Non-generated sources to be scanned for registration routines
+NONGENERATED_REGISTER_C_FILES = \
+	packet-iso15765.c
+
+# Non-generated sources
+NONGENERATED_C_FILES = \
+	$(NONGENERATED_REGISTER_C_FILES)
+
+# Headers.
+CLEAN_HEADER_FILES = \
+	packet-iso15765.h
+
+HEADER_FILES = \
+	$(CLEAN_HEADER_FILES)
+
+include ../Makefile.common.inc
