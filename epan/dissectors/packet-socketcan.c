@@ -175,7 +175,7 @@ dissect_socketcan(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* dat
 
 	next_tvb = tvb_new_subset_length(tvb, CAN_DATA_OFFSET, frame_len);
 
-	if (!dissector_try_uint_new(id_subdissector_table, can_identifier_info->id, next_tvb, pinfo, tree, FALSE, can_identifier_info)) {
+	if (!dissector_try_uint_new(id_subdissector_table, can_identifier_info->id, next_tvb, pinfo, tree, TRUE, can_identifier_info)) {
 		/* Functionality for choosing subdissector is controlled through Decode As as CAN doesn't
            have a unique identifier to determine subdissector */
 		if (!dissector_try_uint_new(subdissector_table, 0, next_tvb, pinfo, tree, FALSE, can_identifier_info)) {
@@ -254,7 +254,7 @@ proto_register_socketcan(void)
 	/* Decode As handling */
 	static build_valid_func can_id_da_build_value[1] = {can_id_value};
 	static decode_as_value_t can_id_da_values = {can_id_prompt, 1, can_id_da_build_value};
-	static decode_as_t can_id_da = {"can", "Transport", "can.id", 1, 0, &can_id_da_values, NULL, NULL,
+	static decode_as_t can_id_da = {"can", "Network", "can.id", 1, 0, &can_id_da_values, NULL, NULL,
 								 decode_as_default_populate_list, decode_as_default_reset, decode_as_default_change, NULL};
 
 	proto_can = proto_register_protocol(
