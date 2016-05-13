@@ -86,23 +86,23 @@ static value_string uds_response_codes[]= {
 };
 
 // DSC
-static value_string uds_dsc_sub_functions[] = {
+static value_string uds_dsc_types[] = {
         {0, "Reserved"},
-        {UDS_DSC_SUB_FUNCTIONS_DEFAULT_SESSION, "Default Session"},
-        {UDS_DSC_SUB_FUNCTIONS_PROGRAMMING_SESSION, "Programming Session"},
-        {UDS_DSC_SUB_FUNCTIONS_EXTENDED_DIAGNOSTIC_SESSION, "Extended Diagnostic Session"},
-        {UDS_DSC_SUB_FUNCTIONS_SAFTY_SYSTEM_DIAGNOSTIC_SESSION, "Safty System Diagnostic Session"},
+        {UDS_DSC_TYPES_DEFAULT_SESSION, "Default Session"},
+        {UDS_DSC_TYPES_PROGRAMMING_SESSION, "Programming Session"},
+        {UDS_DSC_TYPES_EXTENDED_DIAGNOSTIC_SESSION, "Extended Diagnostic Session"},
+        {UDS_DSC_TYPES_SAFTY_SYSTEM_DIAGNOSTIC_SESSION, "Safty System Diagnostic Session"},
         {0, NULL}
 };
 
 // ER
-static value_string uds_er_sub_functions[] = {
+static value_string uds_er_types[] = {
         {0, "Reserved"},
-        {UDS_ER_SUB_FUNCTIONS_HARD_RESET, "Hard Reset"},
-        {UDS_ER_SUB_FUNCTIONS_KEY_ON_OFF_RESET, "Key On Off Reset"},
-        {UDS_ER_SUB_FUNCTIONS_SOFT_RESET, "Soft Reset"},
-        {UDS_ER_SUB_FUNCTIONS_ENABLE_RAPID_POWER_SHUTDOWN, "Enable Rapid Power Shutdown"},
-        {UDS_ER_SUB_FUNCTIONS_DISABLE_RAPID_POWER_SHUTDOWN, "Disable Rapid Power Shutdown"},
+        {UDS_ER_TYPES_HARD_RESET, "Hard Reset"},
+        {UDS_ER_TYPES_KEY_ON_OFF_RESET, "Key On Off Reset"},
+        {UDS_ER_TYPES_SOFT_RESET, "Soft Reset"},
+        {UDS_ER_TYPES_ENABLE_RAPID_POWER_SHUTDOWN, "Enable Rapid Power Shutdown"},
+        {UDS_ER_TYPES_DISABLE_RAPID_POWER_SHUTDOWN, "Disable Rapid Power Shutdown"},
         {0, NULL}
 };
 
@@ -138,6 +138,7 @@ static value_string uds_rc_types[] = {
 
 // CDTCS
 static value_string uds_cdtcs_types[] = {
+        {0, "Reserved"},
         {UDS_CDTCS_ACTIONS_ON, "On"},
         {UDS_CDTCS_ACTIONS_OFF, "Off"},
         {0, NULL}
@@ -149,10 +150,10 @@ static value_string uds_cdtcs_types[] = {
 static int hf_uds_service = -1;
 static int hf_uds_reply = -1;
 
-static int hf_uds_dsc_sub_function = -1;
+static int hf_uds_dsc_type = -1;
 static int hf_uds_dsc_parameter_record = -1;
 
-static int hf_uds_er_sub_function = -1;
+static int hf_uds_er_type = -1;
 
 static int hf_uds_rdtci_type = -1;
 static int hf_uds_rdtci_record = -1;
@@ -263,14 +264,12 @@ dissect_uds(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree _U_, void* data 
 
     if (service == UDS_SERVICES_DSC) {
         proto_tree *uds_dsc_tree;
-        guint8 sub_function;
+        guint8 type;
 
         uds_dsc_tree = proto_tree_add_subtree(uds_tree, tvb, 0, -1, ett_uds_dsc, NULL, service_name);
-        proto_tree_add_item(uds_dsc_tree, hf_uds_dsc_sub_function, tvb, UDS_DSC_SUB_FUNCTION_OFFSET,
-                            UDS_DSC_SUB_FUNCTION_LEN, ENC_BIG_ENDIAN);
-        sub_function = tvb_get_guint8(tvb, UDS_DSC_SUB_FUNCTION_OFFSET);
-        col_append_fstr(pinfo->cinfo, COL_INFO, "   %s",
-                        val_to_str(sub_function, uds_dsc_sub_functions, "Unknown (0x%02x)"));
+        proto_tree_add_item(uds_dsc_tree, hf_uds_dsc_type, tvb, UDS_DSC_TYPE_OFFSET, UDS_DSC_TYPE_LEN, ENC_BIG_ENDIAN);
+        type = tvb_get_guint8(tvb, UDS_DSC_TYPE_OFFSET);
+        col_append_fstr(pinfo->cinfo, COL_INFO, "   %s", val_to_str(type, uds_dsc_types, "Unknown (0x%02x)"));
 
         if (sid & UDS_REPLY_MASK) {
             guint32 parameter_record_length = data_length - UDS_DSC_PARAMETER_RECORD_OFFSET;
@@ -282,14 +281,12 @@ dissect_uds(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree _U_, void* data 
         }
     } else if (service == UDS_SERVICES_ER) {
         proto_tree *uds_er_tree;
-        guint8 sub_function;
+        guint8 type;
 
         uds_er_tree = proto_tree_add_subtree(uds_tree, tvb, 0, -1, ett_uds_er, NULL, service_name);
-        proto_tree_add_item(uds_er_tree, hf_uds_er_sub_function, tvb, UDS_ER_SUB_FUNCTION_OFFSET,
-                            UDS_ER_SUB_FUNCTION_LEN, ENC_BIG_ENDIAN);
-        sub_function = tvb_get_guint8(tvb, UDS_ER_SUB_FUNCTION_OFFSET);
-        col_append_fstr(pinfo->cinfo, COL_INFO, "   %s",
-                        val_to_str(sub_function, uds_er_sub_functions, "Unknown (0x%02x)"));
+        proto_tree_add_item(uds_er_tree, hf_uds_er_type, tvb, UDS_ER_TYPE_OFFSET, UDS_ER_TYPE_LEN, ENC_BIG_ENDIAN);
+        type = tvb_get_guint8(tvb, UDS_ER_TYPE_OFFSET);
+        col_append_fstr(pinfo->cinfo, COL_INFO, "   %s", val_to_str(type, uds_er_types, "Unknown (0x%02x)"));
     } else if (service == UDS_SERVICES_RDTCI) {
         proto_tree *uds_rtdci_tree;
         guint8 report_type;
@@ -555,11 +552,11 @@ proto_register_uds(void)
 
 
             {
-                    &hf_uds_dsc_sub_function,
+                    &hf_uds_dsc_type,
                     {
-                            "Type", "uds.dsc.sub_function",
+                            "Type", "uds.dsc.type",
                             FT_UINT8, BASE_HEX,
-                            VALS(uds_dsc_sub_functions), 0x0,
+                            VALS(uds_dsc_types), 0x0,
                             NULL, HFILL
                     }
             },
@@ -574,11 +571,11 @@ proto_register_uds(void)
             },
 
             {
-                    &hf_uds_er_sub_function,
+                    &hf_uds_er_type,
                     {
-                            "Sub Function", "uds.dsc.sub_function",
+                            "Type", "uds.er.type",
                             FT_UINT8, BASE_HEX,
-                            VALS(uds_er_sub_functions), 0x0,
+                            VALS(uds_er_types), 0x0,
                             NULL, HFILL
                     }
             },
@@ -795,7 +792,7 @@ proto_register_uds(void)
             {
                     &hf_uds_tp_sub_function,
                     {
-                            "Suppress reply", "uds.rd.suppress_reply",
+                            "Suppress reply", "uds.tp.suppress_reply",
                             FT_UINT8, BASE_HEX,
                             NULL, UDS_TP_SUB_FUNCTION_MASK,
                             NULL, HFILL
@@ -804,7 +801,7 @@ proto_register_uds(void)
             {
                     &hf_uds_tp_suppress_pos_rsp_msg_indification,
                     {
-                            "Suppress reply", "uds.rd.suppress_reply",
+                            "Suppress reply", "uds.tp.suppress_reply",
                             FT_BOOLEAN, BASE_HEX,
                             NULL, UDS_TP_SUPPRESS_POS_RSP_MSG_INDIFICATION_MASK,
                             NULL, HFILL
