@@ -52,9 +52,13 @@ typedef struct iso15765_identifier iso15765_identifier_t;
 
 struct iso15765_frame
 {
-    guint32 seq;
-    guint32 offset;
-    guint32 len;
+    guint32  seq;
+    guint32  offset;
+    guint32  len;
+    gboolean error;
+    gboolean complete;
+    guint16  last_frag_id;
+    guint8   frag_id_high[16];
 };
 
 typedef struct iso15765_frame iso15765_frame_t;
@@ -71,6 +75,7 @@ static value_string iso15765_message_types[] = {
 #define EXTENDED_ADDRESSING 2
 
 static gint addressing = NORMAL_ADDRESSING;
+static guint window = 8;
 
 /* Encoding */
 static const enum_val_t enum_addressing[] = {
@@ -181,7 +186,7 @@ dissect_iso15765(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree _U_, void* 
     can_identifier_t* can_info;
     iso15765_identifier_t* iso15765_info;
     guint8      ae = (addressing == NORMAL_ADDRESSING)?0:1;
-    guint32     frag_id;
+    guint8      frag_id_low;
     guint32     offset;
     gint32      data_length;
     gboolean    fragmented = FALSE;
@@ -195,7 +200,7 @@ dissect_iso15765(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree _U_, void* 
 
     iso15765_info = (iso15765_identifier_t *)p_get_proto_data(wmem_file_scope(), pinfo, proto_iso15765, 0);
 
-    if(!iso15765_info) {
+    if (!iso15765_info) {
         iso15765_info = wmem_new(wmem_file_scope(), iso15765_identifier_t);
         memcpy(iso15765_info, can_info, sizeof(can_identifier_t));
         iso15765_info->last = FALSE;
@@ -211,7 +216,7 @@ dissect_iso15765(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree _U_, void* 
     message_type = masked_guint8_value(pci, ISO15765_MESSAGE_TYPE_MASK);
 
     col_add_fstr(pinfo->cinfo, COL_INFO, "%s", val_to_str(message_type, iso15765_message_types, "Unknown (0x%02x)"));
-    if(message_type == ISO15765_MESSAGE_TYPES_SINGLE_FRAME) {
+    if (message_type == ISO15765_MESSAGE_TYPES_SINGLE_FRAME) {
         offset = ae + ISO15765_PCI_OFFSET + ISO15765_PCI_LEN;
         data_length = masked_guint8_value(pci, ISO15765_MESSAGE_DATA_LENGTH_MASK);
         next_tvb = tvb_new_subset(tvb, offset, data_length, data_length);
@@ -221,25 +226,23 @@ dissect_iso15765(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree _U_, void* 
         proto_tree_add_item(iso15765_tree, hf_iso15765_data_length, tvb,
                             ae + ISO15765_PCI_OFFSET, ISO15765_PCI_LEN, ENC_BIG_ENDIAN);
         col_append_fstr(pinfo->cinfo, COL_INFO, "(Len: %d)", data_length);
-    } else if(message_type == ISO15765_MESSAGE_TYPES_FIRST_FRAME) {
+    } else if (message_type == ISO15765_MESSAGE_TYPES_FIRST_FRAME) {
         guint32 full_len = tvb_get_guint8(tvb, ae + ISO15765_MESSAGE_FRAME_LENGTH_OFFSET);
         full_len += (masked_guint8_value(pci, ISO15765_MESSAGE_EXTENDED_FRAME_LENGTH_MASK) << 8);
         offset = ae + ISO15765_MESSAGE_FRAME_LENGTH_OFFSET + ISO15765_MESSAGE_FRAME_LENGTH_LEN;
         data_length = tvb_reported_length(tvb) - offset;
-        frag_id = 0;
+        frag_id_low = 0;
         fragmented = TRUE;
 
         // Save information
-        if(!(pinfo->fd->flags.visited)) {
-            iso15765_frame_t *iso15765_frame;
-            ++msg_seqid;
-
-            iso15765_info->seq = msg_seqid;
-
-            iso15765_frame = wmem_new(wmem_file_scope(), iso15765_frame_t);
-            iso15765_frame->seq = msg_seqid;
+        if (!(pinfo->fd->flags.visited)) {
+            iso15765_frame_t *iso15765_frame = wmem_new(wmem_file_scope(), iso15765_frame_t);
+            iso15765_frame->complete = iso15765_frame->error = FALSE;
+            iso15765_frame->seq = iso15765_info->seq = ++msg_seqid;
             iso15765_frame->offset = 0;
             iso15765_frame->len = full_len;
+            iso15765_frame->last_frag_id = 0;
+            memset(iso15765_frame->frag_id_high, '\0', sizeof(iso15765_frame->frag_id_high));
 
             g_hash_table_insert(iso15765_frame_table, GUINT_TO_POINTER(msg_seqid), iso15765_frame);
         }
@@ -248,14 +251,14 @@ dissect_iso15765(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree _U_, void* 
         proto_tree_add_item(iso15765_tree, hf_iso15765_frame_length, tvb,
                             ae + ISO15765_PCI_OFFSET, ISO15765_PCI_LEN, ENC_BIG_ENDIAN);
         col_append_fstr(pinfo->cinfo, COL_INFO, "(Frame Len: %d)", full_len);
-    } else if(message_type == ISO15765_MESSAGE_TYPES_CONSECUTIVE_FRAME) {
+    } else if (message_type == ISO15765_MESSAGE_TYPES_CONSECUTIVE_FRAME) {
         offset = ae + ISO15765_PCI_OFFSET + ISO15765_PCI_LEN;
         data_length = tvb_reported_length(tvb) - offset;
-        frag_id = masked_guint8_value(pci, ISO15765_MESSAGE_SEQUENCE_NUMBER_MASK);
+        frag_id_low = masked_guint8_value(pci, ISO15765_MESSAGE_SEQUENCE_NUMBER_MASK);
         fragmented = TRUE;
 
         // Save information
-        if(!(pinfo->fd->flags.visited)) {
+        if (!(pinfo->fd->flags.visited)) {
             iso15765_info->seq = msg_seqid;
         }
 
@@ -263,11 +266,11 @@ dissect_iso15765(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree _U_, void* 
         proto_tree_add_item(iso15765_tree, hf_iso15765_sequence_number,
                             tvb, ae + ISO15765_PCI_OFFSET, ISO15765_PCI_LEN, ENC_BIG_ENDIAN);
         col_append_fstr(pinfo->cinfo, COL_INFO, "(Seq: %d)", (pci & ISO15765_MESSAGE_DATA_LENGTH_MASK));
-    } else if(message_type == ISO15765_MESSAGE_TYPES_FLOW_CONTROL) {
+    } else if (message_type == ISO15765_MESSAGE_TYPES_FLOW_CONTROL) {
         guint8 status = masked_guint8_value(pci, ISO15765_MESSAGE_DATA_LENGTH_MASK);
         guint8 bs = tvb_get_guint8(tvb, ae + ISO15765_FC_BS_OFFSET);
         guint8 stmin = tvb_get_guint8(tvb, ae + ISO15765_FC_STMIN_OFFSET);
-        data_length = -1;
+        data_length = 0;
         proto_tree_add_item(iso15765_tree, hf_iso15765_flow_status, tvb,
                             ae + ISO15765_PCI_OFFSET, ISO15765_PCI_LEN, ENC_BIG_ENDIAN);
         proto_tree_add_item(iso15765_tree, hf_iso15765_fc_bs, tvb,
@@ -287,38 +290,61 @@ dissect_iso15765(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree _U_, void* 
                         tvb_bytes_to_str_punct(wmem_packet_scope(), tvb, offset, data_length, ' '));
     }
 
-    if(fragmented) {
-        gboolean    save_fragmented = pinfo->fragmented;
-        tvbuff_t *new_tvb;
-        fragment_head *frag_msg;
-        guint32 len = tvb_captured_length_remaining(tvb, offset);
+    if (fragmented) {
+        tvbuff_t *new_tvb = NULL;
         iso15765_frame_t *iso15765_frame;
+        guint16 frag_id = frag_id_low;
 
         // Get frame information
         iso15765_frame = (iso15765_frame_t *) g_hash_table_lookup(iso15765_frame_table,
                                                                   GUINT_TO_POINTER(iso15765_info->seq));
         DISSECTOR_ASSERT(iso15765_frame);
 
-        // Check if it's the last packet
-        if(!(pinfo->fd->flags.visited)) {
-            iso15765_frame->offset += len;
-            if(iso15765_frame->offset >= iso15765_frame->len) {
-                iso15765_info->last = TRUE;
-                len -= (iso15765_frame->offset - iso15765_frame->len);
-            }
+        DISSECTOR_ASSERT(frag_id < 16);
+
+        frag_id += ((iso15765_frame->frag_id_high[frag_id]++) * 16);
+
+        DISSECTOR_ASSERT(window < 16);
+
+        // Check if there is an error in conversation
+        if (frag_id + window < iso15765_frame->last_frag_id) {
+            // Error in conversation
+            iso15765_frame->error = TRUE;
         }
-        pinfo->fragmented = TRUE;
 
-        /* Add fragment to fragment table */
-        frag_msg = fragment_add_seq_check(&iso15765_reassembly_table, tvb, offset, pinfo, iso15765_info->seq, NULL,
-                                          frag_id, len, !iso15765_info->last);
+        if (!iso15765_frame->error) {
+            gboolean       save_fragmented = pinfo->fragmented;
+            guint32        len = data_length;
+            fragment_head *frag_msg;
+            // Update the last_frag_id
+            if (frag_id > iso15765_frame->last_frag_id) {
+                iso15765_frame->last_frag_id = frag_id;
+            }
 
-        new_tvb = process_reassembled_data(tvb, offset, pinfo, "Reassembled Message", frag_msg,
-                                           &iso15765_frag_items, NULL, iso15765_tree);
+            // Check if it's the last packet
+            if (!(pinfo->fd->flags.visited)) {
+                iso15765_frame->offset += len;
+                if (iso15765_frame->offset >= iso15765_frame->len) {
+                    iso15765_info->last = TRUE;
+                    iso15765_frame->complete = TRUE;
+                    len -= (iso15765_frame->offset - iso15765_frame->len);
+                }
+            }
+            pinfo->fragmented = TRUE;
 
-        if ( frag_msg && frag_msg->reassembled_in != pinfo->num ) {
-            col_append_fstr(pinfo->cinfo, COL_INFO, " [Reassembled in #%u]",
-                            frag_msg->reassembled_in);
+            /* Add fragment to fragment table */
+            frag_msg = fragment_add_seq_check(&iso15765_reassembly_table, tvb, offset, pinfo, iso15765_info->seq, NULL,
+                                              frag_id, len, !iso15765_info->last);
+
+            new_tvb = process_reassembled_data(tvb, offset, pinfo, "Reassembled Message", frag_msg,
+                                               &iso15765_frag_items, NULL, iso15765_tree);
+
+            if (frag_msg && frag_msg->reassembled_in != pinfo->num) {
+                col_append_fstr(pinfo->cinfo, COL_INFO, " [Reassembled in #%u]",
+                                frag_msg->reassembled_in);
+            }
+
+            pinfo->fragmented = save_fragmented;
         }
 
         if (new_tvb) {
@@ -326,16 +352,14 @@ dissect_iso15765(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree _U_, void* 
             next_tvb = new_tvb;
             complete = TRUE;
         } else {
-            next_tvb = tvb_new_subset(tvb, offset, len, len);
+            next_tvb = tvb_new_subset(tvb, offset, data_length, data_length);
         }
-
-        pinfo->fragmented = save_fragmented;
     }
 
     if (next_tvb) {
         /* Functionality for choosing subdissector is controlled through Decode As as ISO15765 doesn't
             have a unique identifier to determine subdissector */
-        if(complete) {
+        if (complete) {
             if (!dissector_try_uint_new(subdissector_table, iso15765_info->id, next_tvb, pinfo, tree, TRUE, NULL)) {
                 call_data_dissector(next_tvb, pinfo, tree);
             }
@@ -573,9 +597,14 @@ proto_register_iso15765(void)
 
     prefs_register_enum_preference(iso15765_module, "addressing",
                                    "Addressing",
-                                   "Addressing of ISO15765. Normal or Extended",
+                                   "Addressing of ISO 15765. Normal or Extended",
                                    &addressing,
                                    enum_addressing, TRUE);
+
+    prefs_register_uint_preference(iso15765_module, "window",
+                                   "Window",
+                                   "Window of ISO 15765 fragments",
+                                   10, &window);
 
     prefs_register_obsolete_preference(iso15765_module, "protocol");
 

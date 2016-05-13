@@ -27,66 +27,86 @@
 #include <wsutil/bits_ctz.h>
 #include "packet-uds.h"
 
+//
+// Enums
+//
+
+// Services
 static value_string uds_services[]= {
-        {UDS_SERVICE_DSC,   "Diagnostic Session Control"},
-        {UDS_SERVICE_ER,    "ECU Reset"},
-        {UDS_SERVICE_CDTCI, "Clear Diagnostic Information"},
-        {UDS_SERVICE_RDTCI, "Read DTC Information"},
-        {UDS_SERVICE_RDBI,  "Read Data By Identifier"},
-        {UDS_SERVICE_RMBA,  "Read Memory By Address"},
-        {UDS_SERVICE_RSDBI, "Read Scaling Data By Identifier"},
-        {UDS_SERVICE_SA,    "Security Access"},
-        {UDS_SERVICE_CC,    "Communication Control"},
-        {UDS_SERVICE_RDBPI, "Read Data By Periodic Identifier"},
-        {UDS_SERVICE_DDDI,  "Dynamically Define Data Identifier"},
-        {UDS_SERVICE_WDBI,  "Write Data By Identifier"},
-        {UDS_SERVICE_IOCBI, "Input Output Control By Identifier"},
-        {UDS_SERVICE_RC,    "Routine Control"},
-        {UDS_SERVICE_RD,    "Request Download"},
-        {UDS_SERVICE_RU,    "Request Upload"},
-        {UDS_SERVICE_TD,    "Transfer Data"},
-        {UDS_SERVICE_RTE,   "Request Transfer Exit"},
-        {UDS_SERVICE_RFT,   "Request File Transfer"},
-        {UDS_SERVICE_WMBA,  "Write Memory By Address"},
-        {UDS_SERVICE_TP,    "Tester Present"},
-        {UDS_SERVICE_ERR,   "Error"},
-        {UDS_SERVICE_CDTCS, "Control DTC Setting"},
+        {UDS_SERVICES_DSC,   "Diagnostic Session Control"},
+        {UDS_SERVICES_ER,    "ECU Reset"},
+        {UDS_SERVICES_CDTCI, "Clear Diagnostic Information"},
+        {UDS_SERVICES_RDTCI, "Read DTC Information"},
+        {UDS_SERVICES_RDBI,  "Read Data By Identifier"},
+        {UDS_SERVICES_RMBA,  "Read Memory By Address"},
+        {UDS_SERVICES_RSDBI, "Read Scaling Data By Identifier"},
+        {UDS_SERVICES_SA,    "Security Access"},
+        {UDS_SERVICES_CC,    "Communication Control"},
+        {UDS_SERVICES_RDBPI, "Read Data By Periodic Identifier"},
+        {UDS_SERVICES_DDDI,  "Dynamically Define Data Identifier"},
+        {UDS_SERVICES_WDBI,  "Write Data By Identifier"},
+        {UDS_SERVICES_IOCBI, "Input Output Control By Identifier"},
+        {UDS_SERVICES_RC,    "Routine Control"},
+        {UDS_SERVICES_RD,    "Request Download"},
+        {UDS_SERVICES_RU,    "Request Upload"},
+        {UDS_SERVICES_TD,    "Transfer Data"},
+        {UDS_SERVICES_RTE,   "Request Transfer Exit"},
+        {UDS_SERVICES_RFT,   "Request File Transfer"},
+        {UDS_SERVICES_WMBA,  "Write Memory By Address"},
+        {UDS_SERVICES_TP,    "Tester Present"},
+        {UDS_SERVICES_ERR,   "Error"},
+        {UDS_SERVICES_CDTCS, "Control DTC Setting"},
+        {0, NULL}
+};
+// Response code
+static value_string uds_response_codes[]= {
+        {UDS_RESPONSE_CODES_GR,      "General reject"},
+        {UDS_RESPONSE_CODES_SNS,     "Service not supported"},
+        {UDS_RESPONSE_CODES_SFNS,    "Sub-Function Not Supported"},
+        {UDS_RESPONSE_CODES_IMLOIF,  "Incorrect Message Length or Invalid Format"},
+        {UDS_RESPONSE_CODES_RTL,     "Response too long"},
+        {UDS_RESPONSE_CODES_BRR,     "Busy repeat request"},
+        {UDS_RESPONSE_CODES_CNC,     "Conditions Not Correct"},
+        {UDS_RESPONSE_CODES_RSE,     "Request Sequence Error"},
+        {UDS_RESPONSE_CODES_NRFSC,   "No response from sub-net component"},
+        {UDS_RESPONSE_CODES_FPEORA,  "Failure prevents execution of requested action"},
+        {UDS_RESPONSE_CODES_ROOR,    "Request Out of Range"},
+        {UDS_RESPONSE_CODES_SAD,     "Security Access Denied"},
+        {UDS_RESPONSE_CODES_IK,      "Invalid Key"},
+        {UDS_RESPONSE_CODES_ENOA,    "Exceeded Number Of Attempts"},
+        {UDS_RESPONSE_CODES_RTDNE,   "Required Time Delay Not Expired"},
+        {UDS_RESPONSE_CODES_UDNA,    "Upload/Download not accepted"},
+        {UDS_RESPONSE_CODES_TDS,     "Transfer data suspended"},
+        {UDS_RESPONSE_CODES_GPF,     "General Programming Failure"},
+        {UDS_RESPONSE_CODES_WBSC,    "Wrong Block Sequence Counter"},
+        {UDS_RESPONSE_CODES_RCRRP,   "Request correctly received, but response is pending"},
+        {UDS_RESPONSE_CODES_SFNSIAS, "Sub-Function not supported in active session"},
+        {UDS_RESPONSE_CODES_SNSIAS,  "Service not supported in active session"},
         {0, NULL}
 };
 
-static value_string uds_responses[]= {
-        {UDS_RESPONSE_GR,      "General reject"},
-        {UDS_RESPONSE_SNS,     "Service not supported"},
-        {UDS_RESPONSE_SFNS,    "Sub-Function Not Supported"},
-        {UDS_RESPONSE_IMLOIF,  "Incorrect Message Length or Invalid Format"},
-        {UDS_RESPONSE_RTL,     "Response too long"},
-        {UDS_RESPONSE_BRR,     "Busy repeat request"},
-        {UDS_RESPONSE_CNC,     "Conditions Not Correct"},
-        {UDS_RESPONSE_RSE,     "Request Sequence Error"},
-        {UDS_RESPONSE_NRFSC,   "No response from sub-net component"},
-        {UDS_RESPONSE_FPEORA,  "Failure prevents execution of requested action"},
-        {UDS_RESPONSE_ROOR,    "Request Out of Range"},
-        {UDS_RESPONSE_SAD,     "Security Access Denied"},
-        {UDS_RESPONSE_IK,      "Invalid Key"},
-        {UDS_RESPONSE_ENOA,    "Exceeded Number Of Attempts"},
-        {UDS_RESPONSE_RTDNE,   "Required Time Delay Not Expired"},
-        {UDS_RESPONSE_UDNA,    "Upload/Download not accepted"},
-        {UDS_RESPONSE_TDS,     "Transfer data suspended"},
-        {UDS_RESPONSE_GPF,     "General Programming Failure"},
-        {UDS_RESPONSE_WBSC,    "Wrong Block Sequence Counter"},
-        {UDS_RESPONSE_RCRRP,   "Request correctly received, but response is pending"},
-        {UDS_RESPONSE_SFNSIAS, "Sub-Function not supported in active session"},
-        {UDS_RESPONSE_SNSIAS,  "Service not supported in active session"},
+// DSC
+static value_string uds_dsc_sub_functions[] = {
+        {0, "Reserved"},
+        {UDS_DSC_SUB_FUNCTIONS_DEFAULT_SESSION, "Default Session"},
+        {UDS_DSC_SUB_FUNCTIONS_PROGRAMMING_SESSION, "Programming Session"},
+        {UDS_DSC_SUB_FUNCTIONS_EXTENDED_DIAGNOSTIC_SESSION, "Extended Diagnostic Session"},
+        {UDS_DSC_SUB_FUNCTIONS_SAFTY_SYSTEM_DIAGNOSTIC_SESSION, "Safty System Diagnostic Session"},
         {0, NULL}
 };
 
-static value_string uds_dsc_session_types[] = {
-        {UDS_DSC_SESSION_TYPES_DEFAULT, "Default Session"},
-        {UDS_DSC_SESSION_TYPES_PROGRAMMING, "Programming Session"},
-        {UDS_DSC_SESSION_TYPES_EXTENDED, "Extended Session"},
+// ER
+static value_string uds_er_sub_functions[] = {
+        {0, "Reserved"},
+        {UDS_ER_SUB_FUNCTIONS_HARD_RESET, "Hard Reset"},
+        {UDS_ER_SUB_FUNCTIONS_KEY_ON_OFF_RESET, "Key On Off Reset"},
+        {UDS_ER_SUB_FUNCTIONS_SOFT_RESET, "Soft Reset"},
+        {UDS_ER_SUB_FUNCTIONS_ENABLE_RAPID_POWER_SHUTDOWN, "Enable Rapid Power Shutdown"},
+        {UDS_ER_SUB_FUNCTIONS_DISABLE_RAPID_POWER_SHUTDOWN, "Disable Rapid Power Shutdown"},
         {0, NULL}
 };
 
+// SA
 static value_string uds_sa_types[] = {
         {UDS_SA_TYPES_SEED, "Request Seed"},
         {UDS_SA_TYPES_KEY, "Send Key"},
@@ -95,17 +115,19 @@ static value_string uds_sa_types[] = {
         {0, NULL}
 };
 
+// RDTCI
 static value_string uds_rdtci_types[] = {
-    {UDS_RDTCI_TYPES_NUMBER_BY_STATUS_MASK, "Report Number of DTC by Status Mask"},
-    {UDS_RDTCI_TYPES_BY_STATUS_MASK, "Report DTC by Status Mask"},
-    {UDS_RDTCI_TYPES_SNAPSHOT_IDENTIFICATION, "Report DTC Snapshot Identification"},
-    {UDS_RDTCI_TYPES_SNAPSHOT_RECORD_BY_DTC, "Report DTC Snapshot Record by DTC Number"},
-    {UDS_RDTCI_TYPES_SNAPSHOT_RECORD_BY_RECORD, "Report DTC Snapshot Record by Record Number"},
-    {UDS_RDTCI_TYPES_EXTENDED_RECARD_BY_DTC, "Report DTC Extended Data Record by DTC Number"},
-    {UDS_RDTCI_TYPES_SUPPORTED_DTC, "Report Supported DTC"},
-    {0, NULL}
+        {UDS_RDTCI_TYPES_NUMBER_BY_STATUS_MASK, "Report Number of DTC by Status Mask"},
+        {UDS_RDTCI_TYPES_BY_STATUS_MASK, "Report DTC by Status Mask"},
+        {UDS_RDTCI_TYPES_SNAPSHOT_IDENTIFICATION, "Report DTC Snapshot Identification"},
+        {UDS_RDTCI_TYPES_SNAPSHOT_RECORD_BY_DTC, "Report DTC Snapshot Record by DTC Number"},
+        {UDS_RDTCI_TYPES_SNAPSHOT_RECORD_BY_RECORD, "Report DTC Snapshot Record by Record Number"},
+        {UDS_RDTCI_TYPES_EXTENDED_RECARD_BY_DTC, "Report DTC Extended Data Record by DTC Number"},
+        {UDS_RDTCI_TYPES_SUPPORTED_DTC, "Report Supported DTC"},
+        {0, NULL}
 };
 
+// RC
 static value_string uds_rc_types[] = {
         {0, "Reserved"},
         {UDS_RC_TYPES_START, "Start routine"},
@@ -114,18 +136,23 @@ static value_string uds_rc_types[] = {
         {0, NULL}
 };
 
+// CDTCS
 static value_string uds_cdtcs_types[] = {
         {UDS_CDTCS_ACTIONS_ON, "On"},
         {UDS_CDTCS_ACTIONS_OFF, "Off"},
         {0, NULL}
 };
 
-
+//
+// Fields
+//
 static int hf_uds_service = -1;
 static int hf_uds_reply = -1;
 
-static int hf_uds_dsc_type = -1;
-static int hf_uds_dsc_data = -1;
+static int hf_uds_dsc_sub_function = -1;
+static int hf_uds_dsc_parameter_record = -1;
+
+static int hf_uds_er_sub_function = -1;
 
 static int hf_uds_rdtci_type = -1;
 static int hf_uds_rdtci_record = -1;
@@ -163,15 +190,18 @@ static int hf_uds_err_code = -1;
 
 static int hf_uds_cdtcs_type = -1;
 
+//
+// Trees
+//
 static gint ett_uds = -1;
 static gint ett_uds_dsc = -1;
+static gint ett_uds_er = -1;
 static gint ett_uds_rdtci = -1;
 static gint ett_uds_rdbi = -1;
 static gint ett_uds_sa = -1;
 static gint ett_uds_wdbi = -1;
 static gint ett_uds_rc = -1;
 static gint ett_uds_rd = -1;
-static gint ett_uds_ru = -1;
 static gint ett_uds_tp = -1;
 static gint ett_uds_err = -1;
 static gint ett_uds_cdtcs = -1;
@@ -231,26 +261,36 @@ dissect_uds(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree _U_, void* data 
     proto_tree_add_item(uds_tree, hf_uds_service, tvb, UDS_SID_OFFSET, UDS_SID_LEN, ENC_BIG_ENDIAN);
     proto_tree_add_item(uds_tree, hf_uds_reply, tvb, UDS_SID_OFFSET, UDS_SID_LEN, ENC_BIG_ENDIAN);
 
-    if(service == UDS_SERVICE_DSC) {
+    if (service == UDS_SERVICES_DSC) {
         proto_tree *uds_dsc_tree;
-        guint8 session_type;
+        guint8 sub_function;
 
         uds_dsc_tree = proto_tree_add_subtree(uds_tree, tvb, 0, -1, ett_uds_dsc, NULL, service_name);
-        proto_tree_add_item(uds_dsc_tree, hf_uds_dsc_type, tvb, UDS_DSC_TYPE_OFFSET,
-                            UDS_DSC_TYPE_LEN, ENC_BIG_ENDIAN);
-        session_type = tvb_get_guint8(tvb, UDS_DSC_TYPE_OFFSET);
+        proto_tree_add_item(uds_dsc_tree, hf_uds_dsc_sub_function, tvb, UDS_DSC_SUB_FUNCTION_OFFSET,
+                            UDS_DSC_SUB_FUNCTION_LEN, ENC_BIG_ENDIAN);
+        sub_function = tvb_get_guint8(tvb, UDS_DSC_SUB_FUNCTION_OFFSET);
         col_append_fstr(pinfo->cinfo, COL_INFO, "   %s",
-                        val_to_str(session_type, uds_dsc_session_types, "Unknown (0x%02x)"));
+                        val_to_str(sub_function, uds_dsc_sub_functions, "Unknown (0x%02x)"));
 
-        if(sid & UDS_REPLY_MASK) {
-            guint32 record_length = data_length - UDS_DSC_DATA_OFFSET;
-            proto_tree_add_item(uds_dsc_tree, hf_uds_dsc_data, tvb,
-                                UDS_DSC_DATA_OFFSET, record_length, ENC_BIG_ENDIAN);
+        if (sid & UDS_REPLY_MASK) {
+            guint32 parameter_record_length = data_length - UDS_DSC_PARAMETER_RECORD_OFFSET;
+            proto_tree_add_item(uds_dsc_tree, hf_uds_dsc_parameter_record, tvb,
+                                UDS_DSC_PARAMETER_RECORD_OFFSET, parameter_record_length, ENC_BIG_ENDIAN);
             col_append_fstr(pinfo->cinfo, COL_INFO, "   %s",
-                            tvb_bytes_to_str_punct(wmem_packet_scope(), tvb, UDS_DSC_DATA_OFFSET,
-                                                   record_length, ' '));
+                            tvb_bytes_to_str_punct(wmem_packet_scope(), tvb, UDS_DSC_PARAMETER_RECORD_OFFSET,
+                                                   parameter_record_length, ' '));
         }
-    } else if(service == UDS_SERVICE_RDTCI) {
+    } else if (service == UDS_SERVICES_ER) {
+        proto_tree *uds_er_tree;
+        guint8 sub_function;
+
+        uds_er_tree = proto_tree_add_subtree(uds_tree, tvb, 0, -1, ett_uds_er, NULL, service_name);
+        proto_tree_add_item(uds_er_tree, hf_uds_er_sub_function, tvb, UDS_ER_SUB_FUNCTION_OFFSET,
+                            UDS_ER_SUB_FUNCTION_LEN, ENC_BIG_ENDIAN);
+        sub_function = tvb_get_guint8(tvb, UDS_ER_SUB_FUNCTION_OFFSET);
+        col_append_fstr(pinfo->cinfo, COL_INFO, "   %s",
+                        val_to_str(sub_function, uds_er_sub_functions, "Unknown (0x%02x)"));
+    } else if (service == UDS_SERVICES_RDTCI) {
         proto_tree *uds_rtdci_tree;
         guint8 report_type;
         guint32 record_length = data_length - UDS_RDTCI_RECORD_OFFSET;
@@ -265,7 +305,7 @@ dissect_uds(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree _U_, void* data 
                         val_to_str(report_type, uds_rdtci_types, "Unknown (0x%02x)"),
                         tvb_bytes_to_str_punct(wmem_packet_scope(), tvb, UDS_RDTCI_RECORD_OFFSET,
                                                record_length, ' '));
-    } else if(service == UDS_SERVICE_RDBI) {
+    } else if (service == UDS_SERVICES_RDBI) {
         proto_tree *uds_rdbi_tree;
         guint16 data_identifier;
 
@@ -273,7 +313,7 @@ dissect_uds(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree _U_, void* data 
         data_identifier = tvb_get_guint16(tvb, UDS_RDBI_DATA_IDENTIFIER_OFFSET, ENC_BIG_ENDIAN);
         proto_tree_add_item(uds_rdbi_tree, hf_uds_rdbi_data_identifier, tvb, UDS_RDBI_DATA_IDENTIFIER_OFFSET,
                             UDS_RDBI_DATA_IDENTIFIER_LEN, ENC_BIG_ENDIAN);
-        if(sid & UDS_REPLY_MASK) {
+        if (sid & UDS_REPLY_MASK) {
             guint32 record_length = data_length - UDS_RDBI_DATA_RECORD_OFFSET;
             proto_tree_add_item(uds_rdbi_tree, hf_uds_rdbi_data_record, tvb, UDS_RDBI_DATA_RECORD_OFFSET,
                                 record_length, ENC_BIG_ENDIAN);
@@ -283,7 +323,7 @@ dissect_uds(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree _U_, void* data 
         } else {
             col_append_fstr(pinfo->cinfo, COL_INFO, "   0x%04x", data_identifier);
         }
-    } else if(service == UDS_SERVICE_SA) {
+    } else if (service == UDS_SERVICES_SA) {
         proto_tree *uds_sa_tree;
         guint8 security_access_type;
 
@@ -294,22 +334,22 @@ dissect_uds(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree _U_, void* data 
         col_append_fstr(pinfo->cinfo, COL_INFO, "   %s",
                         val_to_str(security_access_type, uds_sa_types, "Unknown (0x%02x)"));
 
-        if(sid & UDS_REPLY_MASK) {
+        if (sid & UDS_REPLY_MASK) {
             guint32 seed_length = data_length - UDS_SA_SEED_OFFSET;
-            if(seed_length >0) {
+            if (seed_length >0) {
                 proto_tree_add_item(uds_sa_tree, hf_uds_sa_seed, tvb, UDS_SA_SEED_OFFSET, seed_length, ENC_BIG_ENDIAN);
                 col_append_fstr(pinfo->cinfo, COL_INFO, "   %s",
                                 tvb_bytes_to_str_punct(wmem_packet_scope(), tvb, UDS_SA_SEED_OFFSET, seed_length, ' '));
             }
         } else {
             guint32 key_length = data_length - UDS_SA_KEY_OFFSET;
-            if(key_length > 0) {
+            if (key_length > 0) {
                 proto_tree_add_item(uds_sa_tree, hf_uds_sa_key, tvb, UDS_SA_KEY_OFFSET, key_length, ENC_BIG_ENDIAN);
                 col_append_fstr(pinfo->cinfo, COL_INFO, "   %s",
                                 tvb_bytes_to_str_punct(wmem_packet_scope(), tvb, UDS_SA_KEY_OFFSET, key_length, ' '));
             }
         }
-    } else if(service == UDS_SERVICE_WDBI) {
+    } else if (service == UDS_SERVICES_WDBI) {
         proto_tree *uds_wdbi_tree;
         guint16 data_identifier;
 
@@ -317,7 +357,7 @@ dissect_uds(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree _U_, void* data 
         data_identifier = tvb_get_guint16(tvb, UDS_WDBI_DATA_IDENTIFIER_OFFSET, ENC_BIG_ENDIAN);
         proto_tree_add_item(uds_wdbi_tree, hf_uds_wdbi_data_identifier, tvb, UDS_WDBI_DATA_IDENTIFIER_OFFSET,
                             UDS_WDBI_DATA_IDENTIFIER_LEN, ENC_BIG_ENDIAN);
-        if(sid & UDS_REPLY_MASK) {
+        if (sid & UDS_REPLY_MASK) {
             col_append_fstr(pinfo->cinfo, COL_INFO, "   0x%04x", data_identifier);
         } else {
             guint32 record_length = data_length - UDS_WDBI_DATA_RECORD_OFFSET;
@@ -327,7 +367,7 @@ dissect_uds(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree _U_, void* data 
                             tvb_bytes_to_str_punct(wmem_packet_scope(), tvb, UDS_WDBI_DATA_RECORD_OFFSET, record_length,
                                                    ' '));
         }
-    } else if(service == UDS_SERVICE_RC) {
+    } else if (service == UDS_SERVICES_RC) {
         proto_tree *uds_rc_tree;
         guint8 type;
         guint16 identifier;
@@ -343,7 +383,7 @@ dissect_uds(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree _U_, void* data 
 
         col_append_fstr(pinfo->cinfo, COL_INFO, "   %s 0x%04x",
                         val_to_str(type, uds_rc_types, "Unknown (0x%02x)"), identifier);
-        if(sid & UDS_REPLY_MASK) {
+        if (sid & UDS_REPLY_MASK) {
             guint32 rc_data_len = data_length - UDS_RC_INFO_OFFSET;
             if (rc_data_len > 0) {
                 guint8 info = tvb_get_guint8(tvb, UDS_RC_INFO_OFFSET);
@@ -369,12 +409,12 @@ dissect_uds(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree _U_, void* data 
                                                        UDS_RC_OPTION_RECORD_OFFSET, option_record_len, ' '));
             }
         }
-    } else if(service == UDS_SERVICE_RD) {
+    } else if (service == UDS_SERVICES_RD) {
         proto_tree *uds_rd_tree;
 
         uds_rd_tree = proto_tree_add_subtree(uds_tree, tvb, 0, -1, ett_uds_rd, NULL, service_name);
-        if(sid & UDS_REPLY_MASK) {
-            guint32 extra_length = data_length - UDS_RD_MAX_NUMBER_OF_BLOCK_LENGTH_OFFSET;
+        if (sid & UDS_REPLY_MASK) {
+            guint32 remaining_length = data_length - UDS_RD_MAX_NUMBER_OF_BLOCK_LENGTH_OFFSET;
             guint8 length_format_identifier, max_number_of_block_length_length;
             guint64 max_number_of_block_length;
 
@@ -385,7 +425,7 @@ dissect_uds(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree _U_, void* data 
                                 UDS_RD_LENGTH_FORMAT_IDENTIFIER_OFFSET,
                                 UDS_RD_LENGTH_FORMAT_IDENTIFIER_LEN, ENC_BIG_ENDIAN);
 
-            DISSECTOR_ASSERT(max_number_of_block_length_length == extra_length);
+            DISSECTOR_ASSERT(max_number_of_block_length_length == remaining_length);
 
             max_number_of_block_length = tvb_get_guintX(tvb, UDS_RD_MAX_NUMBER_OF_BLOCK_LENGTH_OFFSET,
                                                         max_number_of_block_length_length, ENC_BIG_ENDIAN);
@@ -395,7 +435,7 @@ dissect_uds(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree _U_, void* data 
 
             col_append_fstr(pinfo->cinfo, COL_INFO, "   Max Number Of Block Length 0x%lx", max_number_of_block_length);
         } else {
-            guint32 extra_length = data_length - UDS_RD_MEMORY_ADDRESS_OFFSET;
+            guint32 remaining_length = data_length - UDS_RD_MEMORY_ADDRESS_OFFSET;
             guint8 data_format_identifier, compression, encryting;
             guint8 address_and_length_format_idenfifier, memory_size_length, memory_address_length;
             guint64 memory_size, memory_address;
@@ -425,7 +465,7 @@ dissect_uds(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree _U_, void* data 
                                 UDS_RD_ADDRESS_AND_LENGTH_FORMAT_IDENTIFIER_OFFSET,
                                 UDS_RD_ADDRESS_AND_LENGTH_FORMAT_IDENTIFIER_LEN, ENC_BIG_ENDIAN);
 
-            DISSECTOR_ASSERT((memory_size_length + memory_address_length) == extra_length);
+            DISSECTOR_ASSERT((memory_size_length + memory_address_length) == remaining_length);
 
             memory_address = tvb_get_guintX(tvb, UDS_RD_MEMORY_ADDRESS_OFFSET, memory_address_length, ENC_BIG_ENDIAN);
             proto_tree_add_item(uds_rd_tree, hf_uds_rd_memory_address, tvb, UDS_RD_MEMORY_ADDRESS_OFFSET,
@@ -440,7 +480,7 @@ dissect_uds(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree _U_, void* data 
 
             col_append_fstr(pinfo->cinfo, COL_INFO, "   (Compression:0x%x Encrypting:0x%x)", compression, encryting);
         }
-    } else if(service == UDS_SERVICE_TP) {
+    } else if (service == UDS_SERVICES_TP) {
         proto_tree *uds_tp_tree;
         guint8 sub_function_a, sub_function;
         uds_tp_tree = proto_tree_add_subtree(uds_tree, tvb, 0, -1, ett_uds_tp, NULL, service_name);
@@ -452,17 +492,17 @@ dissect_uds(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree _U_, void* data 
 
         col_append_fstr(pinfo->cinfo, COL_INFO, "   Sub-function %x", sub_function);
 
-        if(!(sid & UDS_REPLY_MASK)) {
+        if (!(sid & UDS_REPLY_MASK)) {
             guint8 suppress = masked_guint8_value(sub_function_a, UDS_TP_SUPPRESS_POS_RSP_MSG_INDIFICATION_MASK);
 
             proto_tree_add_item(uds_tp_tree, hf_uds_tp_suppress_pos_rsp_msg_indification, tvb,
                                 UDS_TP_SUB_FUNCTION_OFFSET, UDS_TP_SUB_FUNCTION_LEN, ENC_BIG_ENDIAN);
 
-            if(suppress) {
+            if (suppress) {
                 col_append_fstr(pinfo->cinfo, COL_INFO, "   (Reply suppressed)");
             }
         }
-    } else if(service == UDS_SERVICE_ERR) {
+    } else if (service == UDS_SERVICES_ERR) {
         proto_tree *uds_err_tree;
         guint8 error_sid, error_code;
         const char *error_service_name, *error_name;
@@ -472,10 +512,10 @@ dissect_uds(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree _U_, void* data 
         error_service_name = val_to_str(error_sid, uds_services, "Unknown (0x%02x)");
         proto_tree_add_item(uds_err_tree, hf_uds_err_sid, tvb, UDS_ERR_SID_OFFSET, UDS_ERR_SID_LEN, ENC_BIG_ENDIAN);
         error_code = tvb_get_guint8(tvb, UDS_ERR_CODE_OFFSET);
-        error_name = val_to_str(error_code, uds_responses, "Unknown (0x%02x)");
+        error_name = val_to_str(error_code, uds_response_codes, "Unknown (0x%02x)");
         proto_tree_add_item(uds_err_tree, hf_uds_err_code, tvb, UDS_ERR_CODE_OFFSET, UDS_ERR_CODE_LEN, ENC_BIG_ENDIAN);
         col_append_fstr(pinfo->cinfo, COL_INFO, "   %s (SID: %s)", error_name, error_service_name);
-    } else if(service == UDS_SERVICE_CDTCS) {
+    } else if (service == UDS_SERVICES_CDTCS) {
         proto_tree *uds_cdtcs_tree;
         guint8 type;
 
@@ -515,20 +555,30 @@ proto_register_uds(void)
 
 
             {
-                    &hf_uds_dsc_type,
+                    &hf_uds_dsc_sub_function,
                     {
-                            "Type", "uds.dsc.type",
+                            "Type", "uds.dsc.sub_function",
                             FT_UINT8, BASE_HEX,
-                            VALS(uds_dsc_session_types), 0x0,
+                            VALS(uds_dsc_sub_functions), 0x0,
                             NULL, HFILL
                     }
             },
             {
-                    &hf_uds_dsc_data,
+                    &hf_uds_dsc_parameter_record,
                     {
-                            "Data", "uds.dsc.data",
+                            "Parameter Record", "uds.dsc.paramter_record",
                             FT_BYTES, BASE_NONE,
                             NULL, 0x0,
+                            NULL, HFILL
+                    }
+            },
+
+            {
+                    &hf_uds_er_sub_function,
+                    {
+                            "Sub Function", "uds.dsc.sub_function",
+                            FT_UINT8, BASE_HEX,
+                            VALS(uds_er_sub_functions), 0x0,
                             NULL, HFILL
                     }
             },
@@ -775,7 +825,7 @@ proto_register_uds(void)
                     {
                             "Code", "uds.err.code",
                             FT_UINT8, BASE_HEX,
-                            VALS(uds_responses), 0x0,
+                            VALS(uds_response_codes), 0x0,
                             NULL, HFILL
                     }
             },
@@ -796,13 +846,13 @@ proto_register_uds(void)
             {
                     &ett_uds,
                     &ett_uds_dsc,
+                    &ett_uds_er,
                     &ett_uds_rdtci,
                     &ett_uds_rdbi,
                     &ett_uds_sa,
                     &ett_uds_wdbi,
                     &ett_uds_rc,
                     &ett_uds_rd,
-                    &ett_uds_ru,
                     &ett_uds_tp,
                     &ett_uds_err,
                     &ett_uds_cdtcs,
