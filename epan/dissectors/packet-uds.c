@@ -1100,6 +1100,7 @@ void
 proto_reg_handoff_uds(void)
 {
     dissector_add_for_decode_as("iso15765.subdissector", uds_handle);
+    dissector_add_for_decode_as("can.subdissector", uds_handle);
 }
 
 /*
